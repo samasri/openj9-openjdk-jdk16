@@ -359,7 +359,6 @@ final class NativeGaloisCounterMode extends FeedbackCipher {
         byte[] keyCopy = key.clone();
         byte[] ivCopy = iv.clone();
 
-        synchronized (this) {
             checkDataLength(ibuffer_enc.size(), len);
 
             if (len > 0) {
@@ -371,7 +370,6 @@ final class NativeGaloisCounterMode extends FeedbackCipher {
             ibuffer_enc.reset();
 
             aad = ((aadBuffer == null) || (aadBuffer.size() == 0)) ? emptyAAD : aadBuffer.toByteArray();
-        }
 
         int ret = nativeCrypto.GCMEncrypt(keyCopy, keyCopy.length,
                 ivCopy, ivCopy.length,
@@ -485,21 +483,25 @@ final class NativeGaloisCounterMode extends FeedbackCipher {
         // need to synchronize this block as if there are concurrent calls to decryptFinal
         // the shared variables aadBuffer and ibuffer may corrupt input and cause a segfault
         // in openssl code
-        synchronized (this) {
             if (len < 0) {
                 throw new ProviderException("Input length is negative");
             }
 
-            if (len < (tagLenBytes - ibuffer.size())) {
+            int bufSize = 0;
+            synchronized (this) {
+                bufSize = ibuffer.size();
+            }
+
+            if (len < (tagLenBytes - bufSize)) {
                 throw new AEADBadTagException("Input too short - need tag");
             }
 
-            if (len > (MAX_BUF_SIZE - ibuffer.size())) {
+            if (len > (MAX_BUF_SIZE - bufSize)) {
                 throw new ProviderException("SunJCE provider only supports "
                     + "a positive input size up to " + MAX_BUF_SIZE + " bytes");
             }
 
-            if ((out.length - outOfs) < (len  + ibuffer.size() - tagLenBytes)) {
+            if ((out.length - outOfs) < (len  + bufSize - tagLenBytes)) {
                 throw new ShortBufferException("Output buffer too small");
             }
 
@@ -512,9 +514,8 @@ final class NativeGaloisCounterMode extends FeedbackCipher {
             }
 
             // refresh 'in' to all buffered-up bytes
-            in = ibuffer.toByteArray();
+            in = ibuffer.toByteArray().clone();
             ibuffer.reset();
-        }
 
         int ret = nativeCrypto.GCMDecrypt(keyCopy, keyCopy.length,
                 ivCopy, ivCopy.length,
