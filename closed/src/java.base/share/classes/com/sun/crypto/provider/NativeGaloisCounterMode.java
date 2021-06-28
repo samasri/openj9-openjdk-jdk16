@@ -490,6 +490,13 @@ final class NativeGaloisCounterMode extends FeedbackCipher {
             int bufSize = 0;
             synchronized (this) {
                 bufSize = ibuffer.size();
+                if (len > 0) {
+                    ibuffer.write(in, inOfs, len);
+                }
+
+                // refresh 'in' to all buffered-up bytes
+                in = ibuffer.toByteArray();
+                ibuffer.reset();
             }
 
             if (len < (tagLenBytes - bufSize)) {
@@ -508,14 +515,6 @@ final class NativeGaloisCounterMode extends FeedbackCipher {
             aad = ((aadBuffer == null) || (aadBuffer.size() == 0)) ? emptyAAD : aadBuffer.toByteArray();
 
             aadBuffer = null;
-
-            if (len > 0) {
-                ibuffer.write(in, inOfs, len);
-            }
-
-            // refresh 'in' to all buffered-up bytes
-            in = ibuffer.toByteArray().clone();
-            ibuffer.reset();
 
         int ret = nativeCrypto.GCMDecrypt(keyCopy, keyCopy.length,
                 ivCopy, ivCopy.length,
